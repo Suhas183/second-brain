@@ -5,6 +5,7 @@ import bcrypt from "bcryptjs";
 import { UserModel } from "./db";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
 
 const app = express();
 
@@ -55,6 +56,50 @@ app.post("/api/v1/signup", async (req : Request,res : Response) : Promise<any> =
           message: "User has been created successfully"
         });
       }
+
+    } catch (err: any) {
+      if (err instanceof ZodError) {
+        return res.status(400).json({ errors: err.errors });
+      }
+
+      else {
+        return res.status(400).json({
+            message: "User is already present"
+        })
+      }
+    }
+});
+
+app.post("/api/v1/signin", async (req : Request,res : Response) : Promise<any> => {
+    try {
+      // Validate request body against schema
+      const parsedInput: SignupInput = signupSchema.parse(req.body);
+      const user = await UserModel.findOne({
+        username: parsedInput.username});
+        
+        if(user){
+            const isMatch = await bcrypt.compare(parsedInput.password, user.password);
+            if(isMatch){
+                const token = jwt.sign({
+                    username: user.username
+                }, process.env.JWT_SECRET);
+
+                return res.status(200).json({
+                    token : token
+                });
+            }
+
+            else{
+                res.status(401).json({
+                    message: "Invalid credentials"
+                })
+            }
+        }
+        else{
+            return res.status(400).json({
+                message: "User not found"
+            })
+        }
 
     } catch (err: any) {
       if (err instanceof ZodError) {
