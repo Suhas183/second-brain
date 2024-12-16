@@ -2,10 +2,11 @@ import {Request, Response} from "express";
 import express from "express";
 import { z, ZodError } from "zod";
 import bcrypt from "bcryptjs";
-import { UserModel } from "./db";
+import { ContentModel, UserModel } from "./db";
 import dotenv from "dotenv";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
+import { authMiddleware } from "./middleware";
 
 const app = express();
 
@@ -35,6 +36,16 @@ const signupSchema = z.object({
                         .regex(/[!@#$%^&*]/, "Password must have at least one special character")
 });
 
+const ContentSchema = z.object({
+  title: z.string()
+    .min(1, "Title is required")
+    .max(100, "Title can be at most 100 characters long"),
+  
+  link: z.string()
+    .url("Link must be a valid URL"),
+});
+
+type ContentInput = z.infer<typeof ContentSchema>;
 type SignupInput = z.infer<typeof signupSchema>;
 
 app.post("/api/v1/signup", async (req : Request,res : Response) : Promise<any> => {
@@ -81,7 +92,7 @@ app.post("/api/v1/signin", async (req : Request,res : Response) : Promise<any> =
             const isMatch = await bcrypt.compare(parsedInput.password, user.password);
             if(isMatch){
                 const token = jwt.sign({
-                    username: user.username
+                    id: user._id
                 }, process.env.JWT_SECRET);
 
                 return res.status(200).json({
@@ -112,6 +123,28 @@ app.post("/api/v1/signin", async (req : Request,res : Response) : Promise<any> =
         })
       }
     }
+});
+
+app.post("/api/v1/content", authMiddleware, async (req : Request,res : Response) : Promise<any> => {
+  try{
+    const parsedInput : ContentInput = ContentSchema.parse(req.body);
+    
+    const content = await ContentModel.create({
+      title: parsedInput.title,
+      link: parsedInput.link,
+      tags: [],
+      userId: req.userId
+    });
+
+    return res.status(201).json({
+      message: "Content successfully created"
+    });
+  }
+  catch(err){
+    res.status(400).json({
+      message: "Failed to create content"
+    })
+  }
 });
 
 connectDb().then(() => {
