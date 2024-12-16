@@ -147,6 +147,41 @@ app.post("/api/v1/content", authMiddleware, async (req : Request,res : Response)
   }
 });
 
+app.get("/api/v1/content", authMiddleware, async (req : Request,res : Response) : Promise<any> => {
+  const userId = req.userId;
+  const content = await ContentModel.find({
+    userId: userId
+  }).populate('userId', "username");
+  return res.status(200).json({
+    content: content
+  });
+});
+
+
+app.delete("/api/v1/content/:id", authMiddleware, async (req : Request,res : Response) : Promise<any> => {
+  const userId = req.userId;
+  const {id} = req.params;
+  const content = await ContentModel.findOne({
+    _id : id,
+    userId: userId
+  })
+
+  if(content){
+    await ContentModel.deleteOne({
+      _id : id,
+    })
+
+    return res.status(200).json({
+      message :"Content successfully deleted"
+    })
+  }
+  else{
+    return res.status(404).json({
+      message: "Content not found"
+    });
+  }
+});
+
 connectDb().then(() => {
     app.listen(3000, () => {
       console.log("Server is running on port 3000");
